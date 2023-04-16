@@ -10,7 +10,7 @@ name = "downloadpytorch"
 
 [packages]
 pyaudio = "*"
-torch = {version = "==2.0.0+cu118", index = "downloadpytorch"}
+torch = "*"
 fairseq = "*"
 praat-parselmouth = "*"
 resampy = "*"

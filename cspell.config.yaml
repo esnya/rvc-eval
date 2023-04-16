@@ -16,5 +16,8 @@ words:
   - scipy
   - stonemask
   - unsqueeze
+  - w-okada
+  - liujing04
+  - esnya
 ignoreWords: []
 import: []

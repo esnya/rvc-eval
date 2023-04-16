@@ -1,11 +1,6 @@
-# Original Code From: w-okada/voice-changer
+# Original Code From: w-okada, liujing04
 # Modified by: esnya
 
-import os
-import traceback
-from time import time
-
-import faiss
 import numpy as np
 import parselmouth
 import pyworld
@@ -34,53 +29,53 @@ class VC(object):
         self.device = device
         self.is_half = is_half
 
-    def get_f0(self, x, p_len, f0_up_key, f0_method, inp_f0=None):
+    def _pm(
+        self,
+        x: np.ndarray,
+        p_len: int,
+        time_step: float,
+        f0_min: float,
+        f0_max: float,
+    ):
+        f0 = (
+            parselmouth.Sound(x, self.sr)
+            .to_pitch_ac(
+                time_step=time_step / 1000,
+                voicing_threshold=0.6,
+                pitch_floor=f0_min,
+                pitch_ceiling=f0_max,
+            )
+            .selected_array["frequency"]
+        )
+        pad_size = (p_len - len(f0) + 1) // 2
+        if pad_size > 0 or p_len - len(f0) - pad_size > 0:
+            f0 = np.pad(f0, [[pad_size, p_len - len(f0) - pad_size]], mode="constant")
+        return f0
+
+    def _hervest(self, x: np.ndarray, f0_max: float):
+        f0, t = pyworld.harvest(
+            x.astype(np.double),
+            fs=self.sr,
+            f0_ceil=f0_max,
+            frame_period=10,
+        )
+        f0 = pyworld.stonemask(x.astype(np.double), f0, t, self.sr)
+        f0 = signal.medfilt(f0, 3)
+        return f0
+
+    def get_f0(self, x, p_len, f0_up_key, f0_method):
         time_step = self.window / self.sr * 1000
         f0_min = 50
         f0_max = 1100
         f0_mel_min = 1127 * np.log(1 + f0_min / 700)
         f0_mel_max = 1127 * np.log(1 + f0_max / 700)
-        f0 = 0
-        if f0_method == "pm":
-            f0 = (
-                parselmouth.Sound(x, self.sr)
-                .to_pitch_ac(
-                    time_step=time_step / 1000,
-                    voicing_threshold=0.6,
-                    pitch_floor=f0_min,
-                    pitch_ceiling=f0_max,
-                )
-                .selected_array["frequency"]
-            )
-            pad_size = (p_len - len(f0) + 1) // 2
-            if pad_size > 0 or p_len - len(f0) - pad_size > 0:
-                f0 = np.pad(
-                    f0, [[pad_size, p_len - len(f0) - pad_size]], mode="constant"
-                )
-        elif f0_method == "harvest":
-            f0, t = pyworld.harvest(
-                x.astype(np.double),
-                fs=self.sr,
-                f0_ceil=f0_max,
-                frame_period=10,
-            )
-            f0 = pyworld.stonemask(x.astype(np.double), f0, t, self.sr)
-            f0 = signal.medfilt(f0, 3)
+        f0 = (
+            self._pm(x, p_len, time_step, f0_min, f0_max)
+            if f0_method == "pm"
+            else self._hervest(x, f0_max)
+        )
         f0 *= pow(2, f0_up_key / 12)
-        # with open("test.txt","w")as f:f.write("\n".join([str(i)for i in f0.tolist()]))
-        tf0 = self.sr // self.window  # 每秒f0点数
-        if inp_f0 is not None:
-            delta_t = np.round(
-                (inp_f0[:, 0].max() - inp_f0[:, 0].min()) * tf0 + 1
-            ).astype("int16")
-            replace_f0 = np.interp(
-                list(range(delta_t)), inp_f0[:, 0] * 100, inp_f0[:, 1]
-            )
-            shape = f0[self.x_pad * tf0 : self.x_pad * tf0 + len(replace_f0)].shape[0]
-            f0[self.x_pad * tf0 : self.x_pad * tf0 + len(replace_f0)] = replace_f0[
-                :shape
-            ]
-        # with open("test_opt.txt","w")as f:f.write("\n".join([str(i)for i in f0.tolist()]))
+
         f0bak = f0.copy()
         f0_mel = 1127 * np.log(1 + f0 / 700)
         f0_mel[f0_mel > 0] = (f0_mel[f0_mel > 0] - f0_mel_min) * 254 / (
@@ -91,82 +86,44 @@ class VC(object):
         f0_coarse = np.rint(f0_mel).astype(np.int32)
         return f0_coarse, f0bak  # 1-0
 
+    @torch.no_grad()
     def vc(
         self,
         model,
         net_g,
         sid,
-        audio0,
-        pitch,
-        pitchf,
-        times,
-        index,
-        big_npy,
-        index_rate,
+        audio0: torch.Tensor,
+        pitch: torch.Tensor,
+        pitchf: torch.Tensor,
     ):  # ,file_index,file_big_npy
-        feats = torch.from_numpy(audio0)
-        if self.is_half:
-            feats = feats.half()
-        else:
-            feats = feats.float()
-        if feats.dim() == 2:  # double channels
-            feats = feats.mean(-1)
+        feats = audio0.half() if self.is_half else audio0.float()
+
         assert feats.dim() == 1, feats.dim()
         feats = feats.view(1, -1)
-        padding_mask = torch.BoolTensor(feats.shape).to(self.device).fill_(False)
+        padding_mask = torch.BoolTensor(feats.shape).fill_(False).to(self.device)
 
-        inputs = {
-            "source": feats.to(self.device),
-            "padding_mask": padding_mask,
-            "output_layer": 9,  # layer 9
-        }
-        t0 = time()
-        with torch.no_grad():
-            logits = model.extract_features(**inputs)
-            feats = model.final_proj(logits[0])
-
-        if (
-            not isinstance(index, type(None))
-            and not isinstance(big_npy, type(None))
-            and index_rate != 0
-        ):
-            npy = feats[0].cpu().numpy()
-            if self.is_half:
-                npy = npy.astype("float32")
-            D, I = index.search(npy, 1)
-            npy = big_npy[I.squeeze()]
-            if self.is_half:
-                npy = npy.astype("float16")
-            feats = (
-                torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate
-                + (1 - index_rate) * feats
-            )
+        logits = model.extract_features(
+            source=feats.to(self.device),
+            padding_mask=padding_mask,
+            output_layer=9,
+        )
+        feats = model.final_proj(logits[0])
 
         feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
 
-        t1 = time()
-        p_len = audio0.shape[0] // self.window
-        if feats.shape[1] < p_len:
-            p_len = feats.shape[1]
-            if pitch is not None and pitchf is not None:
-                pitch = pitch[:, :p_len]
-                pitchf = pitchf[:, :p_len]
-        p_len = torch.tensor([p_len], device=self.device).long()
+        assert feats.shape[1] <= audio0.shape[0] // self.window
+        p_len = feats.shape[1]
 
-        with torch.no_grad():
-            audio1 = (
-                (net_g.infer(feats, p_len, pitch, pitchf, sid)[0][0, 0] * 32768)
-                .data.cpu()
-                .float()
-                .numpy()
-                .astype(np.int16)
-            )
+        audio1 = (
+            net_g.infer(
+                feats,
+                torch.tensor([p_len], device=self.device, dtype=torch.long),
+                pitch[:, :p_len],
+                pitchf[:, :p_len],
+                sid,
+            )[0][0, 0]
+        ).data
 
-        del feats, p_len, padding_mask
-        torch.cuda.empty_cache()
-        t2 = time()
-        times[0] += t1 - t0
-        times[2] += t2 - t1
         return audio1
 
     def pipeline(
@@ -175,86 +132,37 @@ class VC(object):
         net_g,
         sid,
         audio,
-        times,
         f0_up_key,
         f0_method,
-        file_index,
-        file_big_npy,
-        index_rate,
-        if_f0,
-        f0_file=None,
     ):
-        if (
-            file_big_npy != ""
-            and file_index != ""
-            and os.path.exists(file_big_npy)
-            and os.path.exists(file_index)
-            and index_rate != 0
-        ):
-            try:
-                index = faiss.read_index(file_index)
-                big_npy = np.load(file_big_npy)
-            except:
-                traceback.print_exc()
-                index = big_npy = None
-        else:
-            index = big_npy = None
-
-        audio_opt = []
-        t = None
-        t1 = time()
         audio_pad = np.pad(audio, (self.t_pad, self.t_pad), mode="reflect")
 
         p_len = audio_pad.shape[0] // self.window
-        inp_f0 = None
 
         sid = torch.tensor(sid, device=self.device).unsqueeze(0).long()
-        pitch, pitchf = None, None
-        if if_f0 == 1:
-            pitch, pitchf = self.get_f0(audio_pad, p_len, f0_up_key, f0_method, inp_f0)
-            pitch = pitch[:p_len]
-            pitchf = pitchf[:p_len]
-            pitch = torch.tensor(pitch, device=self.device).unsqueeze(0).long()
-            pitchf = torch.tensor(pitchf, device=self.device).unsqueeze(0).float()
-        t2 = time()
-        times[1] += t2 - t1
+        pitch, pitchf = self.get_f0(audio_pad, p_len, f0_up_key, f0_method)
+        pitch = torch.tensor(
+            pitch[:p_len], device=self.device, dtype=torch.long
+        ).unsqueeze(0)
+        pitchf = torch.tensor(
+            pitchf[:p_len],
+            device=self.device,
+            dtype=torch.float16 if self.is_half else torch.float32,
+        ).unsqueeze(0)
 
-        assert pitch is not None
-        assert pitchf is not None
+        vc_output = self.vc(
+            model,
+            net_g,
+            sid,
+            torch.from_numpy(audio_pad),
+            pitch,
+            pitchf,
+        )
 
-        if self.t_pad_tgt == 0:
-            audio_opt.append(
-                self.vc(
-                    model,
-                    net_g,
-                    sid,
-                    audio_pad[t:],
-                    pitch[:, t // self.window :] if t is not None else pitch,
-                    pitchf[:, t // self.window :] if t is not None else pitchf,
-                    times,
-                    index,
-                    big_npy,
-                    index_rate,
-                )
-            )
-        else:
-            audio_opt.append(
-                self.vc(
-                    model,
-                    net_g,
-                    sid,
-                    audio_pad[t:],
-                    pitch[:, t // self.window :] if t is not None else pitch,
-                    pitchf[:, t // self.window :] if t is not None else pitchf,
-                    times,
-                    index,
-                    big_npy,
-                    index_rate,
-                )[self.t_pad_tgt : -self.t_pad_tgt]
-            )
+        audio_output = (
+            vc_output
+            if self.t_pad_tgt == 0
+            else vc_output[self.t_pad_tgt : -self.t_pad_tgt]
+        )
 
-        audio_opt = np.concatenate(audio_opt)
-
-        del pitch, pitchf, sid
-        torch.cuda.empty_cache()
-        return audio_opt
+        return audio_output
