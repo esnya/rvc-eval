@@ -44,17 +44,16 @@ pipenv shell
 
 1. To list available audio devices:
 ```bash
-python cli.py --list-audio-devices
+python -m rvc_eval.cli --list-audio-devices
 ```
 
 2. To run the voice conversion system (with the default `hubert_base.pt` model or specify a custom path with the `--hubert` option):
 ```
-python cli.py -m path/to/your/model.pth --input-device-index 0 --output-device-index 1
+python -m rvc_eval.cli --model path/to/your/model.pth --input-device-index 0 --output-device-index 1
 ```
 
-## Dependencies and Requirements
-
-- Python: Compatible version with PyTorch 2.0.0+cu118
+## Recommended Dependencies and Requirements
+- Python: 3.10.x
 - PyTorch: 2.0.0+cu118
 - Pipenv is used for managing dependencies.
 
