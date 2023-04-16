@@ -1,0 +1,20 @@
+version: "0.2"
+ignorePaths: []
+dictionaryDefinitions: []
+dictionaries: []
+words:
+  - crossfade
+  - fairseq
+  - faiss
+  - interp
+  - medfilt
+  - parselmouth
+  - pitchf
+  - pyworld
+  - resampy
+  - rint
+  - scipy
+  - stonemask
+  - unsqueeze
+ignoreWords: []
+import: []

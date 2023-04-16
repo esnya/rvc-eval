@@ -1,0 +1,6 @@
+[submodule "Retrieval-based-Voice-Conversion-WebUI"]
+	path = Retrieval-based-Voice-Conversion-WebUI
+	url = https://github.com/liujing04/Retrieval-based-Voice-Conversion-WebUI.git
+[submodule "rvc"]
+	path = rvc
+	url = https://github.com/liujing04/Retrieval-based-Voice-Conversion-WebUI.git
