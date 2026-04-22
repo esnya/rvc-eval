@@ -29,14 +29,14 @@ git submodule update --init --recursive
 
 3. Install dependencies using Pipenv:
 ```bash
-py -3.10 -m pipenv --python 3.10 sync
+pipenv --python 3.10 sync
 ```
 
 4. Download the Hubert model (`hubert_base.pt`) from [Hugging Face](https://huggingface.co/lj1995/VoiceConversionWebUI/tree/main) and place it in the `models` directory:
 
 5. Activate the Pipenv environment:
 ```bash
-py -3.10 -m pipenv shell
+pipenv shell
 ```
 
 
@@ -57,6 +57,7 @@ python -m rvc_eval.cli --model path/to/your/model.pth --input-device-index 0 --o
 - PyTorch: 2.0.0+cu118
 - Pipenv is used for managing dependencies.
 - Start from the checked-in `Pipfile.lock`. Regenerating the lock file with a newer interpreter or toolchain is a separate compatibility task.
+- On Windows, `py -3.10 -m pipenv ...` is equivalent if you prefer using the Python launcher explicitly.
 
 ## Credits
 - This project is based on the [Retrieval-based Voice Conversion](https://github.com/liujing04/Retrieval-based-Voice-Conversion-WebUI) system by liujing04.
