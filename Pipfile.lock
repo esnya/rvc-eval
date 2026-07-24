@@ -886,12 +886,12 @@
         },
         "gitpython": {
             "hashes": [
-                "sha256:024b0422d7f84d15cd794844e029ffebd4c5d42a7eb9b936b458697ef550a02c",
-                "sha256:42f9399c9eb33fc581014bedd76049dfbaf6375aa2a5754575966387280315e1"
+                "sha256:79a36ee1f83523214a3f72d56cf1c4e490d577dc61af77e43dfe5862bd9da01a",
+                "sha256:de0a8ad86274c6e75ae8b37dd055ba68f19818c813108642263227b20775b48e"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.7'",
-            "version": "==3.1.49"
+            "version": "==3.1.52"
         },
         "markdown-it-py": {
             "hashes": [
