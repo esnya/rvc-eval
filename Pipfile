@@ -14,9 +14,15 @@ torch = "*"
 fairseq = "*"
 praat-parselmouth = "*"
 resampy = "*"
+lxml = "==6.1.0"
+setuptools = "==78.1.1"
+jinja2 = "==3.1.6"
+pyworld = "==0.3.5"
+scipy = "==1.15.3"
 
 [dev-packages]
 bandit = "*"
+gitpython = "==3.2.1"
 
 [requires]
 python_version = "3.10"

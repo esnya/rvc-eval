@@ -53,6 +53,13 @@ python -m rvc_eval.cli --model path/to/your/model.pth --input-device-index 0 --o
 ```
 
 ## Recommended Dependencies and Requirements
+
+**Partial security update:** Python 3.10 is end-of-life, and the frozen Torch
+2.0.0 / fairseq / Hydra stack still has unresolved security advisories. This
+update preserves that runtime/model contract and only patches independent
+dependencies. See [the security notes](docs/dependency-security.md) before using
+model files or regenerating the environment.
+
 - Python: 3.10.x
 - PyTorch: 2.0.0+cu118
 - Pipenv is used for managing dependencies.
