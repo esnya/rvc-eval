@@ -1020,8 +1020,8 @@
                 "sha256:d66b0832aa8755c1a84892937282df0befb16c97e5a64aeebd68be9c5e323f53"
             ],
             "index": "pypi",
-            "version": "==3.2.1",
-            "markers": "python_version >= '3.8'"
+            "markers": "python_version >= '3.8'",
+            "version": "==3.2.1"
         },
         "markdown-it-py": {
             "hashes": [
